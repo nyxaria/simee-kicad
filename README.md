@@ -15,6 +15,7 @@ needs: the schematic module and its shared libraries.
 | `kicad-cli-<v>-windows-x86_64.zip` | `bin\kicad-cli.exe` and its DLLs |
 | `kicad-cli-<v>-linux-x86_64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13) |
 | `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later) |
+| `kicad-cli-<v>-linux-x86_64-sources.tar` | the exact Debian source of every library in the Linux bundle |
 | `SHA256SUMS` | checksums of everything above |
 
 simee-core pins one release in `cmake/SimeeKicad.cmake`. simee-kicad-watcher packages each new stable KiCad
@@ -46,6 +47,21 @@ asks for. `bin/kicad-cli` sets `LD_LIBRARY_PATH` and `KICAD_STOCK_DATA_HOME` (Ki
 its data in `/usr/share/kicad`) and runs `libexec/kicad-cli`. The smoke test runs in a bare `ubuntu:24.04`
 container, which proves both the glibc floor and that nothing is missing from `lib/`. The bundle is
 larger than the macOS one (about 150 MB) because eeschema links wx's webview, which pulls in WebKitGTK.
+
+## Licences
+
+The bundles redistribute third-party libraries, several under the LGPL or GPL (cairo, glib, libgit2,
+unixODBC, ...), and the combined work is GPL-3.0-or-later. So every release carries the complete
+corresponding source of everything it ships rather than a written offer, which would oblige us to
+supply sources on request for three years. We ship the source of every bundled library, permissive
+ones included, so nothing hinges on classifying each licence correctly.
+
+- Linux: `kicad-bundle` maps each library to the Debian package that owns it (dpkg's records in the
+  image), copies that package's `copyright` file into `share/doc/<package>/`, lists them all in
+  `THIRD-PARTY.txt`, and downloads each source package at the exact installed version from
+  snapshot.debian.org (cached by sha1 under `~/.cache/kicad-bundle/debian-sources`). A library no
+  package owns fails the build, unless it is KiCad's own (`libki*`).
+- macOS (Homebrew bottles) and Windows (vcpkg): not done yet, see the open issues.
 
 ## Patching KiCad later
 
