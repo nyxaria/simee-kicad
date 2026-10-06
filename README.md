@@ -35,6 +35,10 @@ uv run kicad-bundle --kicad-version 10.0.6 --platform macos   # -> dist/
 uv run pytest
 ```
 
+The download cache (`~/.cache/kicad-bundle`, or `--cache`) is pruned after every build: it keeps the
+installers of the version just built and of the newest other version, and the Debian source files a
+build used in the last 90 days.
+
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
 walk the shared-library closure of `kicad-cli` + the eeschema kiface (`otool -L` / PE imports), drop
 everything else, thin and re-sign per architecture on macOS, then export the netlist of a known
