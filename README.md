@@ -16,6 +16,7 @@ needs: the schematic module and its shared libraries.
 | `kicad-cli-<v>-linux-x86_64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13) |
 | `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later) |
 | `kicad-cli-<v>-linux-x86_64-sources.tar` | the exact Debian source of every library in the Linux bundle |
+| `kicad-cli-<v>-macos-sources.tar` | the source of every third-party library in the macOS bundles, with Homebrew's formulae and patches |
 | `SHA256SUMS` | checksums of everything above |
 
 simee-core pins one release in `cmake/SimeeKicad.cmake`. simee-kicad-watcher packages each new stable KiCad
@@ -35,9 +36,13 @@ uv run kicad-bundle --kicad-version 10.0.6 --platform macos   # -> dist/
 uv run pytest
 ```
 
+The macOS build reads homebrew-core's history from GitHub's API: set `GITHUB_TOKEN` (for example
+`GITHUB_TOKEN=$(gh auth token)`), or it runs into the 60 requests an hour allowed without one.
+
 The download cache (`~/.cache/kicad-bundle`, or `--cache`) is pruned after every build: it keeps the
-installers of the version just built and of the newest other version, and the Debian source files a
-build used in the last 90 days.
+installers of the version just built and of the newest other version, and the source files a
+build used in the last 90 days (macOS: the third-party sources, and the UUIDs, formula and SBOM of
+each Homebrew bottle tried; the bottles themselves aren't kept).
 
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
 walk the shared-library closure of `kicad-cli` + the eeschema kiface (`otool -L` / PE imports), drop
@@ -65,7 +70,20 @@ ones included, so nothing hinges on classifying each licence correctly.
   `THIRD-PARTY.txt`, and downloads each source package at the exact installed version from
   snapshot.debian.org (cached by sha1 under `~/.cache/kicad-bundle/debian-sources`). A library no
   package owns fails the build, unless it is KiCad's own (`libki*`).
-- macOS (Homebrew bottles) and Windows (vcpkg): not done yet, see the open issues.
+- macOS: KiCad's builder (kicad-mac-builder) takes most libraries from Homebrew bottles, relinked and
+  re-signed, which keeps each library's Mach-O UUID. `kicad-bundle` maps each library to its formula
+  (`homebrew.FORMULAE`), walks the formula's homebrew-core history back from the KiCad release until
+  the bottle for the macOS the library was built for holds a file with the same UUID, and takes the
+  source archive that bottle's SBOM names (or, in a bottle older than Homebrew's SBOMs, its formula
+  names), the patches its formula applies, and the formula itself.
+  wxWidgets (KiCad's fork), ngspice and Python are built by kicad-mac-builder: their pins come from its
+  release branch (`10.0` for 10.0.x) as it was when KiCad published the release, a pinned branch
+  resolves to its head at that moment, and the version string in the binary must match the pin. Each
+  bundle's `THIRD-PARTY.txt` lists file -> component -> where it came from, with the licence files
+  of each component's source in `KiCad.app/Contents/Resources/Licenses/<component>/`, and
+  `kicad-cli-<v>-macos-sources.tar` holds the sources of both architectures. A library that is none
+  of these, nor KiCad's own (`libki*`), fails the build.
+- Windows (vcpkg): not done yet, see the open issues.
 
 ## Patching KiCad later
 
