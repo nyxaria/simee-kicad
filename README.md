@@ -17,7 +17,7 @@ branch's.
 | `kicad-cli-<v>-macos-arm64.tar.gz`, `-macos-x86_64.tar.gz` | `KiCad.app` with `Contents/MacOS/kicad-cli` (ad hoc signed) |
 | `kicad-cli-<v>-windows-x86_64.zip` | `bin\kicad-cli.exe` and its DLLs; needs Windows 10 or later |
 | `kicad-cli-<v>-linux-x86_64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13) |
-| `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later) |
+| `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later): the official tag's, or the `simee/<version>` branch's |
 | `kicad-cli-<v>-linux-x86_64-sources.tar` | the exact Debian source of every library in the Linux bundle |
 | `kicad-cli-<v>-macos-sources.tar` | the source of every third-party library in the macOS bundles, with Homebrew's formulae and patches |
 | `kicad-cli-<v>-windows-x86_64-sources.tar` | the upstream sources of every vcpkg port in the Windows bundle, with the ports (portfiles, patches) |
@@ -46,7 +46,7 @@ The macOS build reads homebrew-core's history from GitHub's API: set `GITHUB_TOK
 The download cache (`~/.cache/kicad-bundle`, or `--cache`) is pruned after every build: it keeps the
 installers of the version just built and of the newest other version, and the source files a
 build used in the last 90 days (macOS: the third-party sources, and the UUIDs, formula and SBOM of
-each Homebrew bottle tried; the bottles themselves aren't kept). The treeless clones of the vcpkg
+each Homebrew bottle tried; only the bottles a `--simee-ref` build poured are kept). The treeless clones of the vcpkg
 registries (`vcpkg-registries/`, a few MB) aren't pruned.
 
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
@@ -130,8 +130,30 @@ made (snapshot.debian.org, from the image's dpkg status time) and every installe
 checks every Debian source it built against has the version the image ships, replaces KiCad's own files
 in the repackaged bundle and smoke-tests `sch import` on the fixtures too. It also writes
 `kicad-<v>-source.tar.gz` (GitHub's tarball of that commit). The build runs under amd64 emulation on an
-arm64 Mac (slow). macOS (#11) and Windows (#13) refuse `--simee-ref` until they can build it, so
-no release mixes patched and unpatched platforms.
+arm64 Mac (slow). Windows (#13) refuses `--simee-ref` until it can build it, so no release mixes
+patched and unpatched platforms.
+
+macOS (`kicad_bundle/macos_build.py`): the bundle is the official DMG with KiCad's own files rebuilt
+from the branch, one architecture at a time (x86_64 cross-built on arm64). They're built against
+exactly what the DMG ships, so nothing else changes and its third-party notices and sources still hold:
+- the Homebrew bottles its libraries came from (the ones `THIRD-PARTY.txt` lists, found by Mach-O UUID),
+  poured into a private prefix (`brew_prefix.py`: each keg relocated as `brew` would), plus
+  opencascade's (matched the same way from the full DMG) and glm's at the release date, which KiCad's
+  CMake needs too. Nothing else is searched: no other Homebrew;
+- kicad-mac-builder's wxWidgets fork, configured and made with its `wx.cmake` at the pinned commit;
+- the DMG's own Python.framework (with its wxPython) and ngspice, and the pinned ngspice's headers;
+- kicad-mac-builder's CMake options for KiCad (`DEFAULT_INSTALL_PATH`, `KICAD_SCRIPTING_WXPYTHON`, the
+  DMG's deployment target), minus translations and QA tests, which don't change the binaries.
+
+Each built file then gets the install name, dependencies and rpaths of the official file it replaces,
+and every symbol it imports from a bundled library must be exported by one, or the build fails. The smoke
+test also imports every fixture in `kicad_bundle/smoke/import/` with `sch import`. Needs Xcode, CMake,
+ninja and swig (`brew install swig ninja`); a local build on an M-series Mac takes about an hour, and
+the `macos-14` runner several, so mind the Actions minutes and prefer building locally:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) uv run kicad-bundle --kicad-version 10.0.6 --platform macos --simee-ref simee/10.0.6
+```
 
 To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir>` builds
 `kicad-cli` and the eeschema kiface against Homebrew (a dev build, not a release one), then
