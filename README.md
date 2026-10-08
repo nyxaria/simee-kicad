@@ -6,8 +6,11 @@ other branches and tags are KiCad's history, so clone with `--single-branch`.
 ## What it produces
 
 GitHub releases named `cli-<kicad version>-<n>` (for example `cli-10.0.6-1`), each holding a trimmed
-`kicad-cli` from that official, **unmodified** KiCad release. It contains only what `kicad-cli sch ...`
-needs: the schematic module and its shared libraries.
+`kicad-cli` from that KiCad release. It contains only what `kicad-cli sch ...` needs: the schematic
+module and its shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
+release built with `--simee-ref simee/<version>` has KiCad's own files built from that branch (see
+"Patching KiCad") on the official release's third-party libraries, and its source asset is the
+branch's.
 
 | asset | contents |
 |---|---|
@@ -119,8 +122,16 @@ upstream commit over writing our own, and drop it once the release that has it i
   `.kicad_sch`, which `sch export netlist` then reads. The output folder must exist.
 - an EasyEDA Std import fix: circle net flags (`part_netLabel_Bar`) now connect (not fixed upstream).
 
-Released bundles are still repackaged official builds, so they don't have these yet; building the
-`simee/<version>` branch into the bundles is tracked in the issues linked from #10.
+To build them into a bundle: `uv run kicad-bundle --kicad-version 10.0.6 --platform linux --simee-ref
+simee/10.0.6` (the package workflow's `simee_ref` input does the same; it resolves the branch to one
+commit for every platform). The Linux packager builds `kicad-cli`, the eeschema kiface and `libki*` from
+the branch on the official `kicad/kicad` image itself, with Debian's archive as it was when the image was
+made (snapshot.debian.org, from the image's dpkg status time) and every installed package held, then
+checks every Debian source it built against has the version the image ships, replaces KiCad's own files
+in the repackaged bundle and smoke-tests `sch import` on the fixtures too. It also writes
+`kicad-<v>-source.tar.gz` (GitHub's tarball of that commit). The build runs under amd64 emulation on an
+arm64 Mac (slow). macOS (#11) and Windows (#13) refuse `--simee-ref` until they can build it, so
+no release mixes patched and unpatched platforms.
 
 To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir>` builds
 `kicad-cli` and the eeschema kiface against Homebrew (a dev build, not a release one), then
