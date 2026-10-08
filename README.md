@@ -102,7 +102,10 @@ ones included, so nothing hinges on classifying each licence correctly.
   port's downloads and the port folder itself. A DLL that names no port, nor is KiCad's own
   (`kicad-cli.exe`, `_*.dll`, `ki*.dll`) or Microsoft's C++ runtime (`vcruntime140*`, `msvcp140*`,
   ..., checked by its version resource), fails the build. The C++ runtime is shipped as KiCad ships
-  it, as Visual Studio 2022 Distributable Code, and the notice says so.
+  it, as Visual Studio 2022 Distributable Code, and the notice says so. Decided in #9: simee keeps
+  shipping it rather than requiring the VC++ Redistributable, on George's own Visual Studio licence
+  (redistribution is limited to licensed Visual Studio users). Those terms also require whoever
+  ships simee to external users to bind them to terms protecting Microsoft's code at least as much.
 
 ## Patching KiCad later
 
