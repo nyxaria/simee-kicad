@@ -107,8 +107,26 @@ ones included, so nothing hinges on classifying each licence correctly.
   (redistribution is limited to licensed Visual Studio users). Those terms also require whoever
   ships simee to external users to bind them to terms protecting Microsoft's code at least as much.
 
-## Patching KiCad later
+## Patching KiCad
 
-Nothing is patched today. If simee needs its own export command, add it on a `simee/<version>` branch
-cut from the release tag and switch the package workflow from repackaging to building that branch.
-Only ever add code, so the monthly rebase stays trivial.
+simee's changes to KiCad live on `simee/<version>` branches cut from the release tag (`simee/10.0.6`),
+one commit per change so the monthly rebase onto the next release stays trivial. Prefer backporting an
+upstream commit over writing our own, and drop it once the release that has it is tracked.
+
+`simee/10.0.6` holds:
+- `kicad-cli sch import`, backported from KiCad master (upstream 473474c51a3a, in KiCad 11): imports
+  Altium, Eagle, CADSTAR, EasyEDA (Std and Pro), LTspice and PADS schematics and saves them as
+  `.kicad_sch`, which `sch export netlist` then reads. The output folder must exist.
+- an EasyEDA Std import fix: circle net flags (`part_netLabel_Bar`) now connect (not fixed upstream).
+
+Released bundles are still repackaged official builds, so they don't have these yet; building the
+`simee/<version>` branch into the bundles is tracked in the issues linked from #10.
+
+To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir>` builds
+`kicad-cli` and the eeschema kiface against Homebrew (a dev build, not a release one), then
+`KICAD_CLI=<build dir>/kicad/KiCad.app/Contents/MacOS/kicad-cli uv run pytest` also runs the import
+tests, which skip without `KICAD_CLI`. They import each real circuit in `kicad_bundle/smoke/import/`
+(Adafruit BME280 and SparkFun logic level converter in Eagle, Digispark ATtiny85 in Altium, Easy-SDR
+coax power supply in EasyEDA), export the netlist and compare it with the source tool's: for Eagle,
+read straight from the Eagle XML (`tests/eagle_nets.py`); for the others, checked by hand against the
+project's own schematic export, as each `fixture.json` says. Each fixture keeps its source's licence.
