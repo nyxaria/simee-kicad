@@ -12,11 +12,12 @@ needs: the schematic module and its shared libraries.
 | asset | contents |
 |---|---|
 | `kicad-cli-<v>-macos-arm64.tar.gz`, `-macos-x86_64.tar.gz` | `KiCad.app` with `Contents/MacOS/kicad-cli` (ad hoc signed) |
-| `kicad-cli-<v>-windows-x86_64.zip` | `bin\kicad-cli.exe` and its DLLs |
+| `kicad-cli-<v>-windows-x86_64.zip` | `bin\kicad-cli.exe` and its DLLs; needs Windows 10 or later |
 | `kicad-cli-<v>-linux-x86_64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13) |
 | `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later) |
 | `kicad-cli-<v>-linux-x86_64-sources.tar` | the exact Debian source of every library in the Linux bundle |
 | `kicad-cli-<v>-macos-sources.tar` | the source of every third-party library in the macOS bundles, with Homebrew's formulae and patches |
+| `kicad-cli-<v>-windows-x86_64-sources.tar` | the upstream sources of every vcpkg port in the Windows bundle, with the ports (portfiles, patches) |
 | `SHA256SUMS` | checksums of everything above |
 
 simee-core pins one release in `cmake/SimeeKicad.cmake`. simee-kicad-watcher packages each new stable KiCad
@@ -42,11 +43,13 @@ The macOS build reads homebrew-core's history from GitHub's API: set `GITHUB_TOK
 The download cache (`~/.cache/kicad-bundle`, or `--cache`) is pruned after every build: it keeps the
 installers of the version just built and of the newest other version, and the source files a
 build used in the last 90 days (macOS: the third-party sources, and the UUIDs, formula and SBOM of
-each Homebrew bottle tried; the bottles themselves aren't kept).
+each Homebrew bottle tried; the bottles themselves aren't kept). The treeless clones of the vcpkg
+registries (`vcpkg-registries/`, a few MB) aren't pruned.
 
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
 walk the shared-library closure of `kicad-cli` + the eeschema kiface (`otool -L` / PE imports), drop
-everything else, thin and re-sign per architecture on macOS, then export the netlist of a known
+everything else (on Windows also the app-local Universal CRT, `api-ms-win-*.dll` and `ucrtbase.dll`,
+which Windows 10 and later never load), thin and re-sign per architecture on macOS, then export the netlist of a known
 RC filter and compare KiCad's nets before archiving.
 
 Linux has no official relocatable build, so the Linux bundle comes from the official `kicad/kicad:<v>`
@@ -83,7 +86,23 @@ ones included, so nothing hinges on classifying each licence correctly.
   of each component's source in `KiCad.app/Contents/Resources/Licenses/<component>/`, and
   `kicad-cli-<v>-macos-sources.tar` holds the sources of both architectures. A library that is none
   of these, nor KiCad's own (`libki*`), fails the build.
-- Windows (vcpkg): not done yet, see the open issues.
+- Windows: KiCad builds its DLLs with vcpkg in manifest mode, from `vcpkg.json` (version overrides)
+  and `vcpkg-configuration.json` (registries and baselines: microsoft/vcpkg, plus KiCad's own
+  kicad-vcpkg-registry for python3, wxwidgets-33, ...) in its source at the release tag. Each DLL
+  names the port it was built in (`C:\vcpkg\buildtrees\<port>\...` in its PDB path or `__FILE__`
+  strings). `kicad-bundle` resolves each port's version (override, else the registry's baseline),
+  reads the port folder from the registry by its git tree (`vcpkg.py`, a treeless shallow clone),
+  and evaluates just enough of the portfile to find its downloads (`portfile.py`: URLs, SHA512s,
+  patches; downloads behind an `if()` are included anyway, so the sources are a superset). Each
+  download must match its SHA512. Checks that this is what KiCad built: a DLL that names its vcpkg
+  source folder (`<ref>-<hash>.clean`; the hash covers the archive and its patches) must match a
+  download of the port, and otherwise its FileVersion or ProductVersion must start with the port's
+  version. `THIRD-PARTY.txt` lists file -> port -> registry and tree, the licence files of each
+  port's source go to `share/doc/<port>/`, and `kicad-cli-<v>-windows-x86_64-sources.tar` holds each
+  port's downloads and the port folder itself. A DLL that names no port, nor is KiCad's own
+  (`kicad-cli.exe`, `_*.dll`, `ki*.dll`) or Microsoft's C++ runtime (`vcruntime140*`, `msvcp140*`,
+  ..., checked by its version resource), fails the build. The C++ runtime is shipped as KiCad ships
+  it, as Visual Studio 2022 Distributable Code, and the notice says so.
 
 ## Patching KiCad later
 
