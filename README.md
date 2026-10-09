@@ -122,6 +122,8 @@ upstream commit over writing our own, and drop it once the release that has it i
   Altium, Eagle, CADSTAR, EasyEDA (Std and Pro), LTspice and PADS schematics and saves them as
   `.kicad_sch`, which `sch export netlist` then reads. The output folder must exist.
 - an EasyEDA Std import fix: circle net flags (`part_netLabel_Bar`) now connect (not fixed upstream).
+- no stray `.kicad_sch` (the virtual root sheet) next to an imported schematic: backport of upstream
+  f106b2052cef (in KiCad 11), minus its API save-copy half, which 10.0.x doesn't have (#15).
 
 To build them into a bundle: `uv run kicad-bundle --kicad-version 10.0.6 --platform linux --simee-ref
 simee/10.0.6` (the package workflow's `simee_ref` input does the same; it resolves the branch to one
@@ -175,4 +177,5 @@ tests, which skip without `KICAD_CLI`. They import each real circuit in `kicad_b
 (Adafruit BME280 and SparkFun logic level converter in Eagle, Digispark ATtiny85 in Altium, Easy-SDR
 coax power supply in EasyEDA), export the netlist and compare it with the source tool's: for Eagle,
 read straight from the Eagle XML (`tests/eagle_nets.py`); for the others, checked by hand against the
-project's own schematic export, as each `fixture.json` says. Each fixture keeps its source's licence.
+project's own schematic export, as each `fixture.json` says. An import that leaves a hidden file next
+to its output fails too. Each fixture keeps its source's licence.
