@@ -23,8 +23,9 @@ branch's.
 | `kicad-cli-<v>-windows-x86_64-sources.tar` | the upstream sources of every vcpkg port in the Windows bundle, with the ports (portfiles, patches) |
 | `SHA256SUMS` | checksums of everything above |
 
-simee-core pins one release in `cmake/SimeeKicad.cmake`. simee-kicad-watcher packages each new stable KiCad
-release monthly and opens the pin-bump PR.
+simee-core pins one release in `cmake/SimeeKicad.cmake` (simee-db's worker image too). simee-agents's
+monthly kicad-sync job packages each new stable KiCad release (from its `simee/<version>` branch, below) and
+opens the pin-bump PRs.
 
 Run `kicad-cli` with `KICAD_CONFIG_HOME`, `KICAD_DOCUMENTS_HOME` and `KICAD_CACHE_HOME` pointing at
 private dirs, or its first run writes into the user's home.
@@ -116,6 +117,13 @@ ones included, so nothing hinges on classifying each licence correctly.
 simee's changes to KiCad live on `simee/<version>` branches cut from the release tag (`simee/10.0.6`),
 one commit per change so the monthly rebase onto the next release stays trivial. Prefer backporting an
 upstream commit over writing our own, and drop it once the release that has it is tracked.
+
+kicad-sync does that rebase: for a new release it replays the commits of the `simee/<version>` the pins are
+built from onto the release tag as the new `simee/<version>`, and opens a PR updating the list below. It
+drops a commit when the tag already has its change, or when an upstream commit its message names as
+`upstream <sha>` (or a `cherry picked from commit <sha>` line) is in the tag, so name the commit a backport
+comes from that way. A conflict goes to its repair agent, which carries the rest on `carry/<version>` for
+review; a human then creates `simee/<version>` from it.
 
 `simee/10.0.6` holds:
 - `kicad-cli sch import`, backported from KiCad master (upstream 473474c51a3a, in KiCad 11): imports
