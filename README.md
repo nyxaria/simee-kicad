@@ -117,7 +117,12 @@ ones included, so nothing hinges on classifying each licence correctly.
   (`homebrew.FORMULAE`), walks the formula's homebrew-core history back from the KiCad release until
   the bottle for the macOS the library was built for holds a file with the same UUID, and takes the
   source archive that bottle's SBOM names (or, in a bottle older than Homebrew's SBOMs, its formula
-  names), the patches its formula applies, and the formula itself.
+  names), the patches its formula applies, and the formula itself. Homebrew stopped bottling for Intel
+  Macs in September 2026, so KiCad's build machine builds a newer x86_64 keg from source (10.0.7's
+  openssl@3 3.6.5): no bottle holds it, but the library names its keg (`Cellar/<formula>/<version>/`, in
+  directories compiled in), and the newest bottle of that version for another tag (the arm64 one first)
+  stands in for its formula, source and, in a build from a `simee/` branch, headers, with the official
+  libraries swapped in (#21).
   wxWidgets (KiCad's fork), ngspice and Python are built by kicad-mac-builder: their pins come from its
   release branch (`10.0` for 10.0.x; master for a release candidate from before that branch was cut) as it
   was when KiCad published the release, a pinned branch
