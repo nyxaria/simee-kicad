@@ -92,7 +92,7 @@ gh workflow run package.yml -f kicad_version=11.0.0-rc1 -f simee_ref=rehearsal/1
 The stable image's libraries are the ones closest to the RC that exist. When the RC needs a newer one
 or another `-dev` package, the build fails: that is what `linux_build.BUILD_DEPS` will need on release day,
 when `kicad/kicad:<M>.0.0` exists. macOS and Windows aren't rehearsed yet (their packagers read only
-GitHub releases). A failed rehearsal goes to kicad-sync's repair agent like a failed release, so the fix
+GitHub releases; #19). A failed rehearsal goes to kicad-sync's repair agent like a failed release, so the fix
 lands before the release.
 
 ## Licences
