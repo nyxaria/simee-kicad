@@ -7,7 +7,7 @@ other branches and tags are KiCad's history, so clone with `--single-branch`.
 
 GitHub releases named `cli-<kicad version>-<n>` (for example `cli-10.0.6-1`), each holding a trimmed
 `kicad-cli` from that KiCad release. It contains only what `kicad-cli sch ...` needs: the schematic
-module and its shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
+module, the footprint-assignment one (`sch erc` loads it) and their shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
 release built with `--simee-ref simee/<version>` has KiCad's own files built from that branch (see
 "Patching KiCad") on the official release's third-party libraries, and its source asset is the
 branch's.
@@ -50,18 +50,19 @@ each Homebrew bottle tried; only the bottles a `--simee-ref` build poured are ke
 registries (`vcpkg-registries/`, a few MB) aren't pruned.
 
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
-walk the shared-library closure of `kicad-cli` + the eeschema kiface (`otool -L` / PE imports), drop
+walk the shared-library closure of `kicad-cli` + the kifaces it loads (`otool -L` / PE imports): eeschema's,
+and cvpcb's, which `sch erc` needs for its footprint checks (`bundle.KIFACES`). Drop
 everything else (on Windows also the app-local Universal CRT, `api-ms-win-*.dll` and `ucrtbase.dll`,
 which Windows 10 and later never load), thin and re-sign per architecture on macOS, then export the netlist of a known
-RC filter and compare KiCad's nets before archiving.
+RC filter and run ERC on it, and compare KiCad's nets and ERC errors before archiving.
 
 Linux has no official relocatable build, so the Linux bundle comes from the official `kicad/kicad:<v>`
 Docker image (Debian, amd64 only): `docker export` its filesystem, walk the ELF `DT_NEEDED` closure of
-`kicad-cli` + the kiface, and copy every library except glibc into `lib/` under the name the loader
+`kicad-cli` + the kifaces, and copy every library except glibc into `lib/` under the name the loader
 asks for. `bin/kicad-cli` sets `LD_LIBRARY_PATH` and `KICAD_STOCK_DATA_HOME` (KiCad otherwise looks for
 its data in `/usr/share/kicad`) and runs `libexec/kicad-cli`. The smoke test runs in a bare `ubuntu:24.04`
 container, which proves both the glibc floor and that nothing is missing from `lib/`. The bundle is
-larger than the macOS one (about 150 MB) because eeschema links wx's webview, which pulls in WebKitGTK.
+larger than the macOS one (about 160 MB) because eeschema links wx's webview, which pulls in WebKitGTK.
 
 ## Licences
 
@@ -124,7 +125,7 @@ upstream commit over writing our own, and drop it once the release that has it i
 
 To build them into a bundle: `uv run kicad-bundle --kicad-version 10.0.6 --platform linux --simee-ref
 simee/10.0.6` (the package workflow's `simee_ref` input does the same; it resolves the branch to one
-commit for every platform). The Linux packager builds `kicad-cli`, the eeschema kiface and `libki*` from
+commit for every platform). The Linux packager builds `kicad-cli`, the kifaces and `libki*` from
 the branch on the official `kicad/kicad` image itself, with Debian's archive as it was when the image was
 made (snapshot.debian.org, from the image's dpkg status time) and every installed package held, then
 checks every Debian source it built against has the version the image ships, replaces KiCad's own files
@@ -156,7 +157,7 @@ GITHUB_TOKEN=$(gh auth token) uv run kicad-bundle --kicad-version 10.0.6 --platf
 ```
 
 Windows (`kicad_bundle/windows_build.py`): the official installer's bundle with KiCad's own files
-(`kicad-cli.exe`, `_eeschema.dll`, `ki*.dll`) rebuilt from the branch the way KiCad's builder
+(`kicad-cli.exe`, the kifaces `_*.dll`, `ki*.dll`) rebuilt from the branch the way KiCad's builder
 (kicad-win-builder's `build.ps1`) builds them: MSVC; vcpkg at the commit `build.ps1` pins, in manifest
 mode from the branch's `vcpkg.json` and `vcpkg-configuration.json` (the release tag's, so every port is
 the version the official DLLs come from), triplet `x64-windows`; `build.ps1`'s CMake options, minus
