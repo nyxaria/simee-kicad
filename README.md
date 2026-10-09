@@ -76,7 +76,9 @@ What exists for a release candidate (checked for 10.0.0, October 2026):
   they aren't rehearsed); GitHub's releases, where the packagers download installers, list stables only;
 - official macOS and Windows installers, on KiCad's download server only
   (`kicad-downloads.s3.cern.ch/osx/stable/kicad-unified-universal-10.0.0-rc1.dmg`,
-  `.../windows/stable/kicad-10.0.0-rc1-x86_64.exe`);
+  `.../windows/stable/kicad-10.0.0-rc1-x86_64.exe`). The macOS and Windows packagers take a version with
+  no GitHub release from there (`release.py`; a stable's GitHub release can lag its installers by days
+  too), dated by the installer's upload (its Last-Modified) instead of the release's publication;
 - no `kicad/kicad` Docker image: Docker Hub has no rc tags, and its `nightly` image hasn't been
   updated since February 2026.
 
@@ -115,7 +117,8 @@ ones included, so nothing hinges on classifying each licence correctly.
   source archive that bottle's SBOM names (or, in a bottle older than Homebrew's SBOMs, its formula
   names), the patches its formula applies, and the formula itself.
   wxWidgets (KiCad's fork), ngspice and Python are built by kicad-mac-builder: their pins come from its
-  release branch (`10.0` for 10.0.x) as it was when KiCad published the release, a pinned branch
+  release branch (`10.0` for 10.0.x; master for a release candidate from before that branch was cut) as it
+  was when KiCad published the release, a pinned branch
   resolves to its head at that moment, and the version string in the binary must match the pin. Each
   bundle's `THIRD-PARTY.txt` lists file -> component -> where it came from, with the licence files
   of each component's source in `KiCad.app/Contents/Resources/Licenses/<component>/`, and
@@ -204,7 +207,8 @@ GITHUB_TOKEN=$(gh auth token) uv run kicad-bundle --kicad-version 10.0.6 --platf
 
 Windows (`kicad_bundle/windows_build.py`): the official installer's bundle with KiCad's own files
 (`kicad-cli.exe`, the kifaces `_*.dll`, `ki*.dll`) rebuilt from the branch the way KiCad's builder
-(kicad-win-builder's `build.ps1`) builds them: MSVC; vcpkg at the commit `build.ps1` pins, in manifest
+(kicad-win-builder's `build.ps1`) builds them: MSVC; vcpkg at the commit `build.ps1` pinned when KiCad
+published the installer (kicad-win-builder builds releases and RCs from master), in manifest
 mode from the branch's `vcpkg.json` and `vcpkg-configuration.json` (the release tag's, so every port is
 the version the official DLLs come from), triplet `x64-windows`; `build.ps1`'s CMake options, minus
 translations and Sentry; its swigwin. A built file linked by another MSVC than the official one (the
