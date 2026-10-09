@@ -121,7 +121,9 @@ upstream commit over writing our own, and drop it once the release that has it i
 - `kicad-cli sch import`, backported from KiCad master (upstream 473474c51a3a, in KiCad 11): imports
   Altium, Eagle, CADSTAR, EasyEDA (Std and Pro), LTspice and PADS schematics and saves them as
   `.kicad_sch`, which `sch export netlist` then reads. The output folder must exist.
-- an EasyEDA Std import fix: circle net flags (`part_netLabel_Bar`) now connect (not fixed upstream).
+- an EasyEDA Std import fix: circle net flags (`part_netLabel_Bar`) now connect. Offered upstream as
+  https://gitlab.com/kicad/code/kicad/-/merge_requests/2826 (issue kicad#25730, not merged yet; #14);
+  keep carrying it until a release we track has it.
 - no stray `.kicad_sch` (the virtual root sheet) next to an imported schematic: backport of upstream
   f106b2052cef (in KiCad 11), minus its API save-copy half, which 10.0.x doesn't have (#15).
 
