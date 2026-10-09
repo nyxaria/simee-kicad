@@ -148,8 +148,8 @@ Each built file then gets the install name, dependencies and rpaths of the offic
 and every symbol it imports from a bundled library must be exported by one, or the build fails. The smoke
 test also imports every fixture in `kicad_bundle/smoke/import/` with `sch import`. Needs Xcode 16 or
 later (the package workflow selects 16.2, which the official build used), CMake, ninja and swig
-(`brew install swig ninja`); a local build on an M-series Mac takes about an hour, and
-the `macos-14` runner several, so mind the Actions minutes and prefer building locally:
+(`brew install swig ninja`); both architectures take about an hour, locally on an M-series Mac or
+on the `macos-14` runner (free, as this repo is public; 54 minutes for `cli-10.0.6-4`). Locally:
 
 ```bash
 GITHUB_TOKEN=$(gh auth token) uv run kicad-bundle --kicad-version 10.0.6 --platform macos --simee-ref simee/10.0.6
