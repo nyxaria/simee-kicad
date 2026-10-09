@@ -162,8 +162,8 @@ Windows (`kicad_bundle/windows_build.py`): the official installer's bundle with 
 mode from the branch's `vcpkg.json` and `vcpkg-configuration.json` (the release tag's, so every port is
 the version the official DLLs come from), triplet `x64-windows`; `build.ps1`'s CMake options, minus
 translations and Sentry; its swigwin. A built file linked by another MSVC than the official one (the
-bundle keeps KiCad's C++ runtime and third-party DLLs), or importing a DLL the official one doesn't
-(Windows API sets aside), fails the build. Needs Windows with Visual Studio 2022 and that MSVC (14.44 for
+bundle keeps KiCad's C++ runtime and third-party DLLs), or importing a DLL no official file in the
+bundle imports (Windows API sets aside), fails the build. Needs Windows with Visual Studio 2022 and that MSVC (14.44 for
 10.0.x): the package workflow's `windows-2022` job, free since this repo is public. vcpkg's builds of the
 ports are kept in `~/.cache/kicad-bundle/vcpkg-binaries` (an Actions cache, about 1 GB): the first build
 compiles every port (3 hours on the runner), later ones only KiCad (30 minutes).
