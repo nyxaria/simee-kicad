@@ -24,8 +24,8 @@ branch's.
 | `SHA256SUMS` | checksums of everything above |
 
 simee-core pins one release in `cmake/SimeeKicad.cmake` (simee-db's worker image too). simee-agents's
-monthly kicad-sync job packages each new stable KiCad release (from its `simee/<version>` branch, below) and
-opens the pin-bump PRs.
+weekly kicad-sync job packages each new stable KiCad release (from its `simee/<version>` branch, below) and
+opens the pin-bump PRs. It also rehearses each new major from its release candidates (below).
 
 Run `kicad-cli` with `KICAD_CONFIG_HOME`, `KICAD_DOCUMENTS_HOME` and `KICAD_CACHE_HOME` pointing at
 private dirs, or its first run writes into the user's home.
@@ -64,6 +64,36 @@ asks for. `bin/kicad-cli` sets `LD_LIBRARY_PATH` and `KICAD_STOCK_DATA_HOME` (Ki
 its data in `/usr/share/kicad`) and runs `libexec/kicad-cli`. The smoke test runs in a bare `ubuntu:24.04`
 container, which proves both the glibc floor and that nothing is missing from `lib/`. The bundle is
 larger than the macOS one (about 160 MB) because eeschema links wx's webview, which pulls in WebKitGTK.
+
+## Rehearsing a new major
+
+A new major KiCad can't be read by the previous one's `kicad-cli` (each bumps the file format), so
+kicad-sync gets ready from the major's first release candidate, 5 to 8 weeks before it ships. simee
+ships stable releases only: a rehearsal is never published or pinned.
+
+What exists for a release candidate (checked for 10.0.0, October 2026):
+- a git tag, `<M>.0.0-rcN` (point releases get RCs too, `10.0.7-rc2`, but change no file format, so
+  they aren't rehearsed); GitHub's releases, where the packagers download installers, list stables only;
+- official macOS and Windows installers, on KiCad's download server only
+  (`kicad-downloads.s3.cern.ch/osx/stable/kicad-unified-universal-10.0.0-rc1.dmg`,
+  `.../windows/stable/kicad-10.0.0-rc1-x86_64.exe`);
+- no `kicad/kicad` Docker image: Docker Hub has no rc tags, and its `nightly` image hasn't been
+  updated since February 2026.
+
+So a rehearsal is: simee's patches carried onto the RC tag (pushed as `rehearsal/<rc>`, never
+`simee/<version>`), then the Linux packager's source build of KiCad's own files from that branch on the
+newest stable image (`--base-image kicad/kicad:<stable>`), with the smoke and `sch import` fixture tests:
+
+```bash
+gh workflow run package.yml -f kicad_version=11.0.0-rc1 -f simee_ref=rehearsal/11.0.0-rc1 \
+  -f platforms=linux -f base_image=kicad/kicad:10.0.7 -f publish=false
+```
+
+The stable image's libraries are the ones closest to the RC that exist. When the RC needs a newer one
+or another `-dev` package, the build fails: that is what `linux_build.BUILD_DEPS` will need on release day,
+when `kicad/kicad:<M>.0.0` exists. macOS and Windows aren't rehearsed yet (their packagers read only
+GitHub releases). A failed rehearsal goes to kicad-sync's repair agent like a failed release, so the fix
+lands before the release.
 
 ## Licences
 
@@ -115,7 +145,7 @@ ones included, so nothing hinges on classifying each licence correctly.
 ## Patching KiCad
 
 simee's changes to KiCad live on `simee/<version>` branches cut from the release tag (`simee/10.0.6`),
-one commit per change so the monthly rebase onto the next release stays trivial. Prefer backporting an
+one commit per change so the rebase onto the next release stays trivial. Prefer backporting an
 upstream commit over writing our own, and drop it once the release that has it is tracked.
 
 kicad-sync does that rebase: for a new release it replays the commits of the `simee/<version>` the pins are
