@@ -130,8 +130,7 @@ made (snapshot.debian.org, from the image's dpkg status time) and every installe
 checks every Debian source it built against has the version the image ships, replaces KiCad's own files
 in the repackaged bundle and smoke-tests `sch import` on the fixtures too. It also writes
 `kicad-<v>-source.tar.gz` (GitHub's tarball of that commit). The build runs under amd64 emulation on an
-arm64 Mac (slow). Windows (#13) refuses `--simee-ref` until it can build it, so no release mixes
-patched and unpatched platforms.
+arm64 Mac (slow).
 
 macOS (`kicad_bundle/macos_build.py`): the bundle is the official DMG with KiCad's own files rebuilt
 from the branch, one architecture at a time (x86_64 cross-built on arm64). They're built against
@@ -154,6 +153,18 @@ the `macos-14` runner several, so mind the Actions minutes and prefer building l
 ```bash
 GITHUB_TOKEN=$(gh auth token) uv run kicad-bundle --kicad-version 10.0.6 --platform macos --simee-ref simee/10.0.6
 ```
+
+Windows (`kicad_bundle/windows_build.py`): the official installer's bundle with KiCad's own files
+(`kicad-cli.exe`, `_eeschema.dll`, `ki*.dll`) rebuilt from the branch the way KiCad's builder
+(kicad-win-builder's `build.ps1`) builds them: MSVC; vcpkg at the commit `build.ps1` pins, in manifest
+mode from the branch's `vcpkg.json` and `vcpkg-configuration.json` (the release tag's, so every port is
+the version the official DLLs come from), triplet `x64-windows`; `build.ps1`'s CMake options, minus
+translations and Sentry; its swigwin. A built file linked by another MSVC than the official one (the
+bundle keeps KiCad's C++ runtime and third-party DLLs), or importing a DLL the official one doesn't
+(Windows API sets aside), fails the build. Needs Windows with Visual Studio 2022 and that MSVC (14.44 for
+10.0.x): the package workflow's `windows-2022` job, free since this repo is public. vcpkg's builds of the
+ports are kept in `~/.cache/kicad-bundle/vcpkg-binaries` (an Actions cache, about 1 GB): the first build
+compiles every port (3 hours on the runner), later ones only KiCad (30 minutes).
 
 To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir>` builds
 `kicad-cli` and the eeschema kiface against Homebrew (a dev build, not a release one), then
