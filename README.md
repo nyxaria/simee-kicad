@@ -83,18 +83,20 @@ What exists for a release candidate (checked for 10.0.0, October 2026):
   updated since February 2026.
 
 So a rehearsal is: simee's patches carried onto the RC tag (pushed as `rehearsal/<rc>`, never
-`simee/<version>`), then the Linux packager's source build of KiCad's own files from that branch on the
-newest stable image (`--base-image kicad/kicad:<stable>`), with the smoke and `sch import` fixture tests:
+`simee/<version>`), then every packager's source build of KiCad's own files from that branch, with the smoke
+and `sch import` fixture tests: macOS and Windows on the RC's own installers, Linux on the newest stable
+image (`--base-image kicad/kicad:<stable>`):
 
 ```bash
 gh workflow run package.yml -f kicad_version=11.0.0-rc1 -f simee_ref=rehearsal/11.0.0-rc1 \
-  -f platforms=linux -f base_image=kicad/kicad:10.0.7 -f publish=false
+  -f platforms="linux macos windows" -f base_image=kicad/kicad:10.0.7 -f publish=false
 ```
 
 The stable image's libraries are the ones closest to the RC that exist. When the RC needs a newer one
 or another `-dev` package, the build fails: that is what `linux_build.BUILD_DEPS` will need on release day,
-when `kicad/kicad:<M>.0.0` exists. macOS and Windows aren't rehearsed yet (their packagers read only
-GitHub releases; #19). A failed rehearsal goes to kicad-sync's repair agent like a failed release, so the fix
+when `kicad/kicad:<M>.0.0` exists. On macOS and Windows the RC's toolchain and third-party libraries are
+the release's own, so a failure there (an MSVC the runner lacks, a library no Homebrew bottle holds) is
+what release day would hit too. A failed rehearsal goes to kicad-sync's repair agent like a failed release, so the fix
 lands before the release.
 
 ## Licences
