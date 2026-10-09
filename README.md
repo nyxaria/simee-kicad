@@ -239,3 +239,67 @@ Digispark ATtiny85 in Altium, Easy-SDR coax power supply in EasyEDA), export the
 it with the source tool's: for Eagle, read straight from the Eagle XML (`tests/eagle_nets.py`); for the
 others, checked by hand against the project's own schematic export, as each `fixture.json` says. An
 import that leaves a hidden file next to its output fails too. Each fixture keeps its source's licence.
+
+## AVR toolchain
+
+simee-core's package also ships an AVR toolchain, so the installed `sim_runner` compiles a scenario's
+firmware on a machine without one (simee-core finds it at `<app dir>/avr-gcc/bin/avr-gcc`). This repo
+builds and publishes it, apart from kicad-cli: GitHub releases named `avr-gcc-<gcc version>-<n>` (for
+example `avr-gcc-15.3.0-1`, never marked latest), from Actions → **avr-gcc** (`gh workflow run avr-gcc.yml`;
+`-f publish=false` builds and checks only).
+
+| asset | contents |
+|---|---|
+| `avr-gcc-<v>-macos-arm64.tar.gz`, `-macos-x86_64.tar.gz` | the toolchain root; macOS 11 or later |
+| `avr-gcc-<v>-linux-x86_64.tar.gz` | the toolchain root; glibc 2.36 or later (Debian 12, Ubuntu 22.10) |
+| `avr-gcc-<v>-windows-x86_64.zip` | the toolchain root, `.exe`s; Windows 10 or later |
+| `avr-gcc-<v>-source.tar` | every upstream source archive it is built from, and the scripts that build it (`simee-build/`) |
+| `avr-gcc-<v>-runtime-sources.tar` | the exact Debian sources of the C/C++ runtime the Linux and Windows programs link statically |
+| `SHA256SUMS` | checksums of everything above, also in the release notes for simee-core's pin |
+
+Each archive has one top folder, the toolchain root: `bin/avr-gcc`, `bin/avr-objcopy` and the rest of
+binutils, `avr/include` and `avr/lib` (avr-libc), `lib/gcc/avr/<v>/`, `libexec/gcc/avr/<v>/` (cc1, cc1plus,
+lto1, the LTO plugin), `share/doc/<component>/` (licences) and `THIRD-PARTY.txt`. GCC finds its own
+programs, binutils and avr-libc relative to `bin/avr-gcc`, so the root runs wherever it is copied: no
+`--with-as`/`--with-ld` (which would compile in absolute paths), GMP, MPFR and MPC built in GCC's tree and
+linked statically, no zstd or isl, and on Linux and Windows the C/C++ runtime linked statically too
+(`-static-libstdc++ -static-libgcc`; `-static`). Every build is checked that way (`avr_toolchain/check.py`):
+with its build folder moved away, the archive is unpacked into a temp dir with a space in its path, and
+with an empty `PATH` it compiles simee-core's `fixtures/blink/blink.c` for the ATmega328P as C, as C++
+and with `-flto`, and `avr-objcopy` makes an Intel HEX of it. The Windows archive is checked on the
+`windows-2022` runner, the x86_64 macOS one under Rosetta.
+
+Which build: simee builds GCC 15.3.0, binutils 2.47 and avr-libc 2.3.2 from GNU's and avrdudes' release
+archives, unmodified (pins and SHA256s in `avr_toolchain/components.py`), rather than repackaging
+Arduino's `avr-gcc 7.3.0-atmel3.6.1-arduino7` (what simee-core's tests used on the Mac host) or
+Microchip's toolchain. Arduino's is built for macOS x86_64 only (Rosetta on Apple silicon) and for 32-bit
+Windows (`i686-w64-mingw32`), from Atmel's patched GCC 7 with Arduino's scripts, so its exact
+corresponding source would have to be reassembled from someone else's archives; and GCC 7 has been out of
+support since 2019. Microchip's is a binary download with the same source question. Building from
+upstream gives a native arm64 build, a supported compiler (and avr-libc 2.3's newer devices), and a source
+asset that is simply the archives built from. `-Os` code differs a little from GCC 7's: simee-core's
+firmware fixtures and tests pin the behaviour that matters.
+
+How (`avr_toolchain/build.py`): configure, make and `make install-strip` binutils, then GCC (C and C++,
+`--with-avrlibc`), then configure avr-libc with `--host=avr` and build it with the new compiler. A host the
+build machine can't run natively is cross-built (a "Canadian cross") with the build machine's own AVR
+toolchain building the target libraries, so each job builds its native host first: the `macos-14`
+(arm64) job builds macos-arm64 then macos-x86_64 (`clang -arch x86_64`); the Linux job, in a `debian:12`
+container for its glibc 2.36, builds linux-x86_64 then windows-x86_64 with Debian's mingw-w64 (win32
+threads). Locally:
+
+```bash
+uv run avr-toolchain build --host macos-arm64     # -> dist/, checked; about 15 minutes on an M-series Mac
+uv run avr-toolchain build --host macos-x86_64    # cross-built with the arm64 one in work/
+AVR_TOOLCHAIN=dist/avr-gcc-15.3.0-macos-arm64.tar.gz uv run pytest tests/test_avr_toolchain.py
+```
+
+Licences: binutils and GCC are GPL-3.0-or-later, libgcc (and libstdc++, which isn't built for the AVR)
+under the GCC Runtime Library Exception, so firmware compiled with it carries no GPL obligation; GMP, MPFR
+and MPC, linked into the compiler, are LGPL-3.0-or-later; avr-libc, linked into firmware, is BSD-3-Clause.
+Each archive has the licence files of every component's source in `share/doc/<component>/` and a
+`THIRD-PARTY.txt` naming them, their upstream URL and SHA256. As for kicad-cli, every release carries the
+complete corresponding source rather than a written offer: the upstream archives with the scripts that
+built them, and for the Linux and Windows builds the exact Debian sources (snapshot.debian.org, with each
+package's Built-Using: gcc-mingw-w64's libstdc++ is gcc-12's) of the runtime linked in statically, whose
+copyright files go to `share/doc/<package>/`. macOS links only the OS's own libc++ and libSystem.
