@@ -6,8 +6,9 @@ other branches and tags are KiCad's history, so clone with `--single-branch`.
 ## What it produces
 
 GitHub releases named `cli-<kicad version>-<n>` (for example `cli-10.0.6-1`), each holding a trimmed
-`kicad-cli` from that KiCad release. It contains only what `kicad-cli sch ...` needs: the schematic
-module, the footprint-assignment one (`sch erc` loads it) and their shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
+`kicad-cli` from that KiCad release. It contains only what `kicad-cli sch ...`, `fp ...` and `pcb ...`
+need: the schematic module, the footprint-assignment one (`sch erc` loads it), the PCB one (every `fp`
+and `pcb` command: gerbers, drill, STEP) and their shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
 release built with `--simee-ref simee/<version>` has KiCad's own files built from that branch (see
 "Patching KiCad") on the official release's third-party libraries, and its source asset is the
 branch's.
@@ -52,10 +53,13 @@ registries (`vcpkg-registries/`, a few MB) aren't pruned.
 
 How it works: download the official installer (cached in `~/.cache/kicad-bundle`), copy out the app,
 walk the shared-library closure of `kicad-cli` + the kifaces it loads (`otool -L` / PE imports): eeschema's,
-and cvpcb's, which `sch erc` needs for its footprint checks (`bundle.KIFACES`). Drop
+cvpcb's, which `sch erc` needs for its footprint checks, and pcbnew's, which links opencascade
+(`bundle.KIFACES`). Drop
 everything else (on Windows also the app-local Universal CRT, `api-ms-win-*.dll` and `ucrtbase.dll`,
-which Windows 10 and later never load), thin and re-sign per architecture on macOS, then export the netlist of a known
-RC filter and run ERC on it, and compare KiCad's nets and ERC errors before archiving.
+which Windows 10 and later never load), thin and re-sign per architecture on macOS, then smoke-test before
+archiving: export the netlist of a known RC filter and run ERC on it, comparing KiCad's nets and ERC
+errors; upgrade a KiCad 5 footprint library (`fp upgrade`); and export the filter's board as gerbers
+(their pads must carry the schematic's nets), drill (its four holes) and STEP (`kicad_bundle/smoke/`).
 
 Linux has no official relocatable build, so the Linux bundle comes from the official `kicad/kicad:<v>`
 Docker image (Debian, amd64 only): `docker export` its filesystem, walk the ELF `DT_NEEDED` closure of
@@ -63,7 +67,8 @@ Docker image (Debian, amd64 only): `docker export` its filesystem, walk the ELF 
 asks for. `bin/kicad-cli` sets `LD_LIBRARY_PATH` and `KICAD_STOCK_DATA_HOME` (KiCad otherwise looks for
 its data in `/usr/share/kicad`) and runs `libexec/kicad-cli`. The smoke test runs in a bare `ubuntu:24.04`
 container, which proves both the glibc floor and that nothing is missing from `lib/`. The bundle is
-larger than the macOS one (about 160 MB) because eeschema links wx's webview, which pulls in WebKitGTK.
+larger than the macOS one (about 210 MB, against 90) because eeschema links wx's webview, which pulls in
+WebKitGTK. pcbnew's kiface and opencascade add about 30 MB to each bundle (50 on Linux).
 
 ## Rehearsing a new major
 
@@ -193,9 +198,9 @@ macOS (`kicad_bundle/macos_build.py`): the bundle is the official DMG with KiCad
 from the branch, one architecture at a time (x86_64 cross-built on arm64). They're built against
 exactly what the DMG ships, so nothing else changes and its third-party notices and sources still hold:
 - the Homebrew bottles its libraries came from (the ones `THIRD-PARTY.txt` lists, found by Mach-O UUID),
-  poured into a private prefix (`brew_prefix.py`: each keg relocated as `brew` would), plus
-  opencascade's (matched the same way from the full DMG) and glm's at the release date, which KiCad's
-  CMake needs too. Nothing else is searched: no other Homebrew;
+  poured into a private prefix (`brew_prefix.py`: each keg relocated as `brew` would; opencascade's among
+  them, as pcbnew links it), plus glm's at the release date, which KiCad's CMake needs too. Nothing else
+  is searched: no other Homebrew;
 - kicad-mac-builder's wxWidgets fork, configured and made with its `wx.cmake` at the pinned commit;
 - the DMG's own Python.framework (with its wxPython) and ngspice, and the pinned ngspice's headers;
 - kicad-mac-builder's CMake options for KiCad (`DEFAULT_INSTALL_PATH`, `KICAD_SCRIPTING_WXPYTHON`, the
