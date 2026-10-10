@@ -292,10 +292,12 @@ build machine can't run natively is cross-built (a "Canadian cross") with the bu
 toolchain building the target libraries, so each job builds its native host first: the `macos-14`
 (arm64) job builds macos-arm64 then macos-x86_64 (`clang -arch x86_64`); the Linux job, in a `debian:12`
 container for its glibc 2.36, builds linux-x86_64 then windows-x86_64 with Debian's mingw-w64 (win32
-threads). Locally:
+threads). On the runners the Linux job takes about an hour, the macOS one two. The AVR libraries' debug
+info is stripped (`avr-strip --strip-debug`), which takes a toolchain from about 600 MB to 350 MB unpacked
+(75 to 100 MB archived). Locally:
 
 ```bash
-uv run avr-toolchain build --host macos-arm64     # -> dist/, checked; about 15 minutes on an M-series Mac
+uv run avr-toolchain build --host macos-arm64     # -> dist/, checked
 uv run avr-toolchain build --host macos-x86_64    # cross-built with the arm64 one in work/
 AVR_TOOLCHAIN=dist/avr-gcc-15.3.0-macos-arm64.tar.gz uv run pytest tests/test_avr_toolchain.py
 ```
@@ -308,4 +310,5 @@ Each archive has the licence files of every component's source in `share/doc/<co
 complete corresponding source rather than a written offer: the upstream archives with the scripts that
 built them, and for the Linux and Windows builds the exact Debian sources (snapshot.debian.org, with each
 package's Built-Using: gcc-mingw-w64's libstdc++ is gcc-12's) of the runtime linked in statically, whose
-copyright files go to `share/doc/<package>/`. macOS links only the OS's own libc++ and libSystem.
+copyright files go to `share/doc/<package>/`. On macOS the programs link only the OS's own libraries
+(libSystem, libc++, libz, libiconv).
