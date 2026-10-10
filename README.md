@@ -259,7 +259,10 @@ simee-core's package also ships an AVR toolchain, so the installed `sim_runner` 
 firmware on a machine without one (simee-core finds it at `<app dir>/avr-gcc/bin/avr-gcc`). This repo
 builds and publishes it, apart from kicad-cli: GitHub releases named `avr-gcc-<gcc version>-<n>` (for
 example `avr-gcc-15.3.0-1`, never marked latest), from Actions → **avr-gcc** (`gh workflow run avr-gcc.yml`;
-`-f publish=false` builds and checks only).
+`-f publish=false` builds and checks only). Run it on a commit that doesn't change `.github/workflows/`: the
+release step tags the commit, and GitHub refuses (HTTP 403, "Resource not accessible by integration") to let
+the workflow's token create a tag on a commit that changes a workflow. That is how `avr-gcc-15.3.0-1` was
+built by the workflow but published by hand from its artifacts.
 
 | asset | contents |
 |---|---|
