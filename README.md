@@ -265,10 +265,14 @@ simee-core's package also ships an AVR toolchain, so the installed `sim_runner` 
 firmware on a machine without one (simee-core finds it at `<app dir>/avr-gcc/bin/avr-gcc`). This repo
 builds and publishes it, apart from kicad-cli: GitHub releases named `avr-gcc-<gcc version>-<n>` (for
 example `avr-gcc-15.3.0-1`, never marked latest), from Actions → **avr-gcc** (`gh workflow run avr-gcc.yml`;
-`-f publish=false` builds and checks only). Run it on a commit that doesn't change `.github/workflows/`: the
-release step tags the commit, and GitHub apparently refuses (HTTP 403, "Resource not accessible by integration") to let
-the workflow's token create a tag on a commit that changes a workflow (inferred: the same token publishes `cli-*` releases). That is how `avr-gcc-15.3.0-1` was
-built by the workflow but published by hand from its artifacts.
+`-f publish=false` builds and checks only). GitHub won't let a workflow's token tag a commit whose
+`.github/workflows/` differs from `simee-ci`'s head (HTTP 403, "Resource not accessible by integration"; inferred,
+#23: `cli-10.0.6-9` tagged a commit that changes `package.yml`, while the avr-gcc run that built
+`avr-gcc-15.3.0-1` couldn't tag its commit after `simee-ci` changed `package.yml` during the build, so that
+release was published by hand from the run's artifacts). So when `simee-ci` changes a workflow during a
+build, both workflows' release jobs (`kicad_bundle/tag_target.py`) tag its head instead, if what the release
+is built from (the Python packages, `pyproject.toml`, `uv.lock` and the workflow itself) is unchanged
+there, and otherwise fail, saying so: dispatch the workflow again.
 
 | asset | contents |
 |---|---|
