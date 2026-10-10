@@ -341,8 +341,8 @@ copyright files go to `share/doc/<package>/`. On macOS the programs link only th
 
 ## Arm toolchain
 
-simee-core compiles RP2040 firmware with Arm's own GNU toolchain release for arm-none-eabi
-(simee-core#107), and ships it in its package as it ships avr-gcc. This repo publishes it trimmed, with its
+simee-core compiles RP2040 and RP2350 (Arm) firmware with Arm's own GNU toolchain release for
+arm-none-eabi (simee-core#107, #111), and ships it in its package as it ships avr-gcc. This repo publishes it trimmed, with its
 sources: GitHub releases named `arm-gcc-<Arm release>-<n>` (for example `arm-gcc-15.2.rel1-1`, never marked
 latest), from Actions → **arm-gcc** (`gh workflow run arm-gcc.yml`; `-f publish=false` packages and checks
 only). The release is pinned in `arm_toolchain/components.py`, with the SHA256 Arm publishes next to each
@@ -359,16 +359,19 @@ download.
 | `SHA256SUMS` | checksums of everything above, also in the release notes for simee-core's pin |
 
 Arm's binaries aren't rebuilt: `arm_toolchain/package.py` copies out of each of Arm's archives (about 1 GB
-unpacked) only what an RP2040 (Cortex-M0+, no FPU) build runs and links, `package.KEEP`: the C and C++
-drivers, binutils, `cc1`, `cc1plus`, `collect2` and LTO, the headers, and newlib, libstdc++ and libgcc for the
-`thumb/v6-m/nofp` multilib (`components.MULTILIBS`; the RP2350 will add `thumb/v8-m.main+fp/softfp`,
-simee-core#111), plus Arm's build manifest. That is about 186 MB unpacked, 36 MB as `.tar.xz`. Each archive
+unpacked) only what an RP2040 (Cortex-M0+, no FPU) or RP2350 (Cortex-M33 in Arm mode) build runs and links,
+`package.KEEP`: the C and C++ drivers, binutils, `cc1`, `cc1plus`, `collect2` and LTO, the headers, and newlib,
+libstdc++ and libgcc for the `thumb/v6-m/nofp` and `thumb/v8-m.main+fp/softfp` multilibs
+(`components.MULTILIBS`, about 20 MB each), plus Arm's build manifest. That is about 205 MB unpacked, 38 MB as
+`.tar.xz` (from `arm-gcc-15.2.rel1-3`; the RP2040's multilib alone, up to `-2`, 186 and 36). Each archive
 has one top folder, the toolchain root (`bin/arm-none-eabi-gcc`), which runs from wherever it is copied, like
 Arm's own. Arm's Windows zip has no top folder; ours does, like the others. Every archive is checked
 (`arm_toolchain/check.py`) on the OS it is for, by the workflow's runners: unpacked into a temp dir with a
-space in its path, with an empty `PATH`, the C driver must pick the `thumb/v6-m/nofp` multilib for
-`-mcpu=cortex-m0plus -mthumb`, and it compiles and links a C and a C++ program (`arm_toolchain/smoke/`, with
-newlib's `nosys.specs`) into Arm ELF files that `arm-none-eabi-objcopy` turns into raw images. Locally:
+space in its path, with an empty `PATH`, for each multilib the C driver must pick it for pico-sdk's flags for
+its chip (`thumb/v6-m/nofp` for `-mcpu=cortex-m0plus -mthumb`, `thumb/v8-m.main+fp/softfp` for `-mcpu=cortex-m33
+-mthumb -march=armv8-m.main+fp+dsp -mfloat-abi=softfp -mcmse`), and with those flags it compiles and links a C
+and a C++ program (`arm_toolchain/smoke/`, with newlib's `nosys.specs`) into Arm ELF files that
+`arm-none-eabi-objcopy` turns into raw images. Locally:
 
 ```bash
 uv run arm-toolchain package --host macos-arm64    # -> dist/, checked when it runs here
@@ -400,7 +403,7 @@ compile against current macOS SDKs (as for avr-gcc). Checked against Arm's arm64
 (#26): the same files, the same `-print-multi-lib` (39 multilibs), `-print-search-dirs` and
 `-print-sysroot`, byte-identical raw images of the smoke programs (with and without `-flto`), and identical
 `-O2` Cortex-M0+ assembly for the first 291 of GCC's `gcc.c-torture/execute` tests; 167 MB unpacked, 37 MB
-as `.tar.xz`. Locally:
+as `.tar.xz` (with the RP2040's multilib only; the RP2350's adds about 20 MB, 2 compressed). Locally:
 
 ```bash
 uv run arm-toolchain package --host macos-x86_64   # -> dist/, checked (under Rosetta on arm64)
