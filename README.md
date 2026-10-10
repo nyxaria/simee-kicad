@@ -17,9 +17,9 @@ branch's.
 |---|---|
 | `kicad-cli-<v>-macos-arm64.tar.gz`, `-macos-x86_64.tar.gz` | `KiCad.app` with `Contents/MacOS/kicad-cli` (ad hoc signed) |
 | `kicad-cli-<v>-windows-x86_64.zip` | `bin\kicad-cli.exe` and its DLLs; needs Windows 10 or later |
-| `kicad-cli-<v>-linux-x86_64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13) |
+| `kicad-cli-<v>-linux-x86_64.tar.gz`, `-linux-arm64.tar.gz` | `bin/kicad-cli` (a wrapper), `libexec/`, and every library but glibc in `lib/`; needs glibc 2.39+ (Ubuntu 24.04, Debian 13). arm64 from `cli-10.0.6-9` |
 | `kicad-<v>-source.tar.gz` | the matching KiCad source (GPL-3.0-or-later): the official tag's, or the `simee/<version>` branch's |
-| `kicad-cli-<v>-linux-x86_64-sources.tar` | the exact Debian source of every library in the Linux bundle |
+| `kicad-cli-<v>-linux-x86_64-sources.tar`, `-linux-arm64-sources.tar` | the exact Debian source of every library in that Linux bundle |
 | `kicad-cli-<v>-macos-sources.tar` | the source of every third-party library in the macOS bundles, with Homebrew's formulae and patches |
 | `kicad-cli-<v>-windows-x86_64-sources.tar` | the upstream sources of every vcpkg port in the Windows bundle, with the ports (portfiles, patches) |
 | `SHA256SUMS` | checksums of everything above |
@@ -69,6 +69,19 @@ its data in `/usr/share/kicad`) and runs `libexec/kicad-cli`. The smoke test run
 container, which proves both the glibc floor and that nothing is missing from `lib/`. The bundle is
 larger than the macOS one (about 210 MB, against 90) because eeschema links wx's webview, which pulls in
 WebKitGTK. pcbnew's kiface and opencascade add about 30 MB to each bundle (50 on Linux).
+
+The official image is amd64 only, so the arm64 bundle (`--arch arm64`, always with `--simee-ref`; #16) is built
+like it rather than repackaged (`linux_build.native`): the Debian image the official one is built `FROM` (its
+history names it, `debian:trixie-<date>`), for arm64, with every package the official image has installed from
+Debian's archive as it was when that image was made (snapshot.debian.org), then KiCad built from the branch on
+it as below and put where the official image has it (`usr/bin`, `usr/lib/aarch64-linux-gnu`), with the official
+image's data (`usr/share/kicad/schemas`). The bundle comes from that image as from the official one, and the
+build fails unless every Debian source both images have is at the same version. It needs an arm64 docker: the
+package workflow's `ubuntu-24.04-arm` runner (free, as this repo is public), or an Apple-silicon Mac, natively:
+
+```bash
+uv run kicad-bundle --kicad-version 10.0.6 --platform linux --arch arm64 --simee-ref simee/10.0.6
+```
 
 ## Rehearsing a new major
 
