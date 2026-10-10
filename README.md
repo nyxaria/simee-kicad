@@ -338,3 +338,50 @@ built them, and for the Linux and Windows builds the exact Debian sources (snaps
 package's Built-Using: gcc-mingw-w64's libstdc++ is gcc-12's) of the runtime linked in statically, whose
 copyright files go to `share/doc/<package>/`. On macOS the programs link only the OS's own libraries
 (libSystem, libc++, libz, libiconv).
+
+## Arm toolchain
+
+simee-core compiles RP2040 firmware with Arm's own GNU toolchain release for arm-none-eabi
+(simee-core#107), and ships it in its package as it ships avr-gcc. This repo publishes it trimmed, with its
+sources: GitHub releases named `arm-gcc-<Arm release>-<n>` (for example `arm-gcc-15.2.rel1-1`, never marked
+latest), from Actions → **arm-gcc** (`gh workflow run arm-gcc.yml`; `-f publish=false` packages and checks
+only). The release is pinned in `arm_toolchain/components.py`, with the SHA256 Arm publishes next to each
+download.
+
+| asset | contents |
+|---|---|
+| `arm-gcc-<v>-macos-arm64.tar.xz` | the toolchain root |
+| `arm-gcc-<v>-linux-x86_64.tar.xz`, `-linux-arm64.tar.xz` | the toolchain root |
+| `arm-gcc-<v>-windows-x86_64.zip` | the toolchain root, `.exe`s |
+| `arm-gnu-toolchain-src-snapshot-<v>.tar.xz` | Arm's source snapshot for the release, unchanged |
+| `SHA256SUMS` | checksums of everything above, also in the release notes for simee-core's pin |
+
+Arm's binaries aren't rebuilt: `arm_toolchain/package.py` copies out of each of Arm's archives (about 1 GB
+unpacked) only what an RP2040 (Cortex-M0+, no FPU) build runs and links, `package.KEEP`: the C and C++
+drivers, binutils, `cc1`, `cc1plus`, `collect2` and LTO, the headers, and newlib, libstdc++ and libgcc for the
+`thumb/v6-m/nofp` multilib (`components.MULTILIBS`; the RP2350 will add `thumb/v8-m.main+fp/softfp`,
+simee-core#111), plus Arm's build manifest. That is about 186 MB unpacked, 36 MB as `.tar.xz`. Each archive
+has one top folder, the toolchain root (`bin/arm-none-eabi-gcc`), which runs from wherever it is copied, like
+Arm's own. Arm's Windows zip has no top folder; ours does, like the others. Every archive is checked
+(`arm_toolchain/check.py`) on the OS it is for, by the workflow's runners: unpacked into a temp dir with a
+space in its path, with an empty `PATH`, the C driver must pick the `thumb/v6-m/nofp` multilib for
+`-mcpu=cortex-m0plus -mthumb`, and it compiles and links a C and a C++ program (`arm_toolchain/smoke/`, with
+newlib's `nosys.specs`) into Arm ELF files that `arm-none-eabi-objcopy` turns into raw images. Locally:
+
+```bash
+uv run arm-toolchain package --host macos-arm64    # -> dist/, checked when it runs here
+uv run arm-toolchain sources                       # -> dist/<Arm's source snapshot>
+ARM_TOOLCHAIN=dist/arm-gcc-15.2.rel1-macos-arm64.tar.xz uv run pytest tests/test_arm_toolchain.py
+```
+
+Arm builds no macOS x86_64 toolchain after 14.2.rel1, so there is none here yet: building its host programs
+from Arm's source snapshot, with the target libraries from the arm64 archive, is #26.
+
+Licences: binutils and GCC are GPL-3.0-or-later, libgcc and libstdc++ under the GCC Runtime Library
+Exception, so firmware linked with them carries no GPL obligation; newlib's libc, libm and libnosys are under
+the BSD-style licences its `COPYING.NEWLIB` lists; GMP, MPFR and MPC (LGPL-3.0-or-later), isl (MIT) and
+libiconv (LGPL-2.1-or-later) are linked into the compilers; the Windows programs also hold MinGW-w64's runtime.
+Each archive has the licence files of each of those components from Arm's source snapshot in
+`share/doc/<folder>/` (`components.SHIPPED`), and a `THIRD-PARTY.txt` naming Arm's download, the trim and the
+components. As for kicad-cli and avr-gcc, every release carries the complete corresponding source rather than
+a written offer: Arm's snapshot, which every component above is built from.
