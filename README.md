@@ -196,6 +196,10 @@ review; a human then creates `simee/<version>` from it.
   Eagle page), `sch import` puts them under a root sheet that the output file holds, so `sch export
   netlist` of the output sees the whole design. Upstream's `sch import` writes the other sheets with
   nothing referencing them; its top-level `import` command, not backported, lists them in a project (#17).
+- sheet files land next to the output wherever the input is. The import moved them as Save As does,
+  relative to the input's folder, but most importers (Eagle's among them) make them in the project's,
+  the output's: an output folder inside the input's got `<out>/<out relative to the input's>/` and a
+  root naming files that weren't there. Upstream master has the same bug (#18).
 
 To build them into a bundle: `uv run kicad-bundle --kicad-version 10.0.6 --platform linux --simee-ref
 simee/10.0.6` (the package workflow's `simee_ref` input does the same; it resolves the branch to one
@@ -249,8 +253,10 @@ To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout
 tests, which skip without `KICAD_CLI`. They import each real circuit in `kicad_bundle/smoke/import/`
 (Adafruit BME280, SparkFun logic level converter and SparkFun's two-sheet Tsunami Qwiic in Eagle,
 Digispark ATtiny85 in Altium, Easy-SDR coax power supply in EasyEDA), export the netlist and compare
-it with the source tool's: for Eagle, read straight from the Eagle XML (`tests/eagle_nets.py`); for the
-others, checked by hand against the project's own schematic export, as each `fixture.json` says. An
+it with the source tool's, three times: with the source and output folders apart, and with each inside
+the other (`sch_import.LAYOUTS`). For Eagle the expected nets are read straight from the Eagle XML
+(`tests/eagle_nets.py`); for the others, checked by hand against the project's own schematic export, as
+each `fixture.json` says. An
 import that leaves a hidden file next to its output fails too. Each fixture keeps its source's licence.
 
 ## AVR toolchain
