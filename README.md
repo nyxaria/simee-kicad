@@ -269,6 +269,12 @@ with an empty `PATH` it compiles simee-core's `fixtures/blink/blink.c` for the A
 and with `-flto`, and `avr-objcopy` makes an Intel HEX of it. The Windows archive is checked on the
 `windows-2022` runner, the x86_64 macOS one under Rosetta.
 
+One upstream limit: on Windows, `-flto` fails (`collect2.exe: fatal error: CreateProcess: No such file or
+directory`) when the toolchain's path has a space, e.g. under `C:\Program Files`. The driver hands collect2
+lto-wrapper's path with each space escaped by a backslash (`C:/with\ space/...`), which Windows can't run.
+Plain compiles work from any path, and simee-core doesn't use `-flto`; the check compiles the Windows LTO
+variant from a copy in a path without spaces.
+
 Which build: simee builds GCC 15.3.0, binutils 2.47 and avr-libc 2.3.2 from GNU's and avrdudes' release
 archives, unmodified (pins and SHA256s in `avr_toolchain/components.py`), rather than repackaging
 Arduino's `avr-gcc 7.3.0-atmel3.6.1-arduino7` (what simee-core's tests used on the Mac host) or
