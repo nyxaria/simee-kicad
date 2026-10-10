@@ -351,9 +351,11 @@ download.
 | asset | contents |
 |---|---|
 | `arm-gcc-<v>-macos-arm64.tar.xz` | the toolchain root |
+| `arm-gcc-<v>-macos-x86_64.tar.xz` | the toolchain root, its host programs built by simee; macOS 11 or later |
 | `arm-gcc-<v>-linux-x86_64.tar.xz`, `-linux-arm64.tar.xz` | the toolchain root |
 | `arm-gcc-<v>-windows-x86_64.zip` | the toolchain root, `.exe`s |
 | `arm-gnu-toolchain-src-snapshot-<v>.tar.xz` | Arm's source snapshot for the release, unchanged |
+| `arm-gcc-<v>-build-scripts.tar` | the scripts that build the macOS x86_64 programs from it (`simee-build/`) |
 | `SHA256SUMS` | checksums of everything above, also in the release notes for simee-core's pin |
 
 Arm's binaries aren't rebuilt: `arm_toolchain/package.py` copies out of each of Arm's archives (about 1 GB
@@ -374,8 +376,35 @@ uv run arm-toolchain sources                       # -> dist/<Arm's source snaps
 ARM_TOOLCHAIN=dist/arm-gcc-15.2.rel1-macos-arm64.tar.xz uv run pytest tests/test_arm_toolchain.py
 ```
 
-Arm builds no macOS x86_64 toolchain after 14.2.rel1, so there is none here yet: building its host programs
-from Arm's source snapshot, with the target libraries from the arm64 archive, is #26.
+Arm builds no macOS x86_64 toolchain after 14.2.rel1, so simee builds that one (`arm_toolchain/build.py`, #26)
+and every host still gets the same release. The target side doesn't depend on the host: the headers,
+newlib, libstdc++, libgcc and the specs (everything `package.KEEP` keeps outside `bin/`, `libexec/` and
+`arm-none-eabi/bin/`) come unchanged from Arm's macOS arm64 archive. Only the host programs are built, from
+Arm's source snapshot: binutils from its `binutils-gdb`, and GCC's `all-gcc` and `all-lto-plugin` (the
+drivers, cc1, cc1plus, lto1, collect2, lto-wrapper, liblto_plugin) from its `gcc`, with the snapshot's GMP,
+MPFR, MPC and isl in GCC's tree, linked statically. They take Arm's own configure options, read from the
+`*-manifest.txt` in its arm64 archive at build time (`--with-multilib-list=aprofile,rmprofile`,
+`--with-native-system-header-dir=/include`, `--enable-checking=release`, ...), with only the folders, the
+bug URL, the languages (C and C++: Arm's Fortran isn't kept) and the pkgversion (`Arm GNU Toolchain
+15.2.rel1, built by simee for macOS x86_64`) replaced, and they are built against Arm's sysroot, so the
+driver picks the same multilibs and searches the same paths. The sysroot is under the install prefix, which
+GCC and ld then find relative to themselves wherever the root is copied; the build deletes that prefix once
+the programs are copied out, so the check can't reach into it, and fails if any program Arm's arm64 archive
+keeps wasn't built. On an arm64 Mac (the workflow's `macos-14` job) they are cross-built with `clang -arch
+x86_64` for macOS 11 and checked under Rosetta; on an Intel Mac they build natively. Cross-building, GCC's
+build runs an `arm-none-eabi-gcc` for the build machine (`-dumpspecs`): Arm's own arm64 one, from the same
+archive. Arm's snapshot is a git checkout without the generated `.info` manuals, so make runs with
+`MAKEINFO=true` and makes none (none are kept). Like Arm's, the programs link only macOS's own libraries
+(libSystem, libc++, libiconv), and no zstd; but the OS's libz rather than the bundled zlib, which doesn't
+compile against current macOS SDKs (as for avr-gcc). Checked against Arm's arm64 build on an M-series Mac
+(#26): the same files, the same `-print-multi-lib` (39 multilibs), `-print-search-dirs` and
+`-print-sysroot`, byte-identical raw images of the smoke programs (with and without `-flto`), and identical
+`-O2` Cortex-M0+ assembly for the first 291 of GCC's `gcc.c-torture/execute` tests; 167 MB unpacked, 37 MB
+as `.tar.xz`. Locally:
+
+```bash
+uv run arm-toolchain package --host macos-x86_64   # -> dist/, checked (under Rosetta on arm64)
+```
 
 Licences: binutils and GCC are GPL-3.0-or-later, libgcc and libstdc++ under the GCC Runtime Library
 Exception, so firmware linked with them carries no GPL obligation; newlib's libc, libm and libnosys are under
@@ -384,4 +413,6 @@ libiconv (LGPL-2.1-or-later) are linked into the compilers; the Windows programs
 Each archive has the licence files of each of those components from Arm's source snapshot in
 `share/doc/<folder>/` (`components.SHIPPED`), and a `THIRD-PARTY.txt` naming Arm's download, the trim and the
 components. As for kicad-cli and avr-gcc, every release carries the complete corresponding source rather than
-a written offer: Arm's snapshot, which every component above is built from.
+a written offer: Arm's snapshot, which every component above is built from, and for the macOS x86_64
+programs, which are simee's build, the scripts that built them (`arm-gcc-<v>-build-scripts.tar`, as avr-gcc's
+`simee-build/`).
