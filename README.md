@@ -8,7 +8,7 @@ other branches and tags are KiCad's history, so clone with `--single-branch`.
 GitHub releases named `cli-<kicad version>-<n>` (for example `cli-10.0.6-1`), each holding a trimmed
 `kicad-cli` from that KiCad release. It contains only what `kicad-cli sch ...`, `fp ...` and `pcb ...`
 need: the schematic module, the footprint-assignment one (`sch erc` loads it), the PCB one (every `fp`
-and `pcb` command: gerbers, drill, STEP) and their shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
+and `pcb` command: gerbers, drill, STEP, SVG, 3D renders, board import) and their shared libraries. Up to `cli-10.0.6-3` they are the official, unmodified binaries; a
 release built with `--simee-ref simee/<version>` has KiCad's own files built from that branch (see
 "Patching KiCad") on the official release's third-party libraries, and its source asset is the
 branch's.
@@ -58,8 +58,39 @@ cvpcb's, which `sch erc` needs for its footprint checks, and pcbnew's, which lin
 everything else (on Windows also the app-local Universal CRT, `api-ms-win-*.dll` and `ucrtbase.dll`,
 which Windows 10 and later never load), thin and re-sign per architecture on macOS, then smoke-test before
 archiving: export the netlist of a known RC filter and run ERC on it, comparing KiCad's nets and ERC
-errors; upgrade a KiCad 5 footprint library (`fp upgrade`); and export the filter's board as gerbers
-(their pads must carry the schematic's nets), drill (its four holes) and STEP (`kicad_bundle/smoke/`).
+errors; upgrade a KiCad 5 footprint library (`fp upgrade`); export the filter's board as gerbers
+(their pads must carry the schematic's nets), drill (its four holes), STEP and SVG, and render it in 3D
+(`kicad_bundle/smoke/`; see "Drawing a board").
+
+### Drawing a board
+
+simee-db draws each breakout board on the studio's bench from its own PCB (#20), as the smoke test does
+(`smoke.check_drawings`):
+
+```bash
+kicad-cli pcb export svg --mode-single --layers F.Cu,F.Mask,F.SilkS,Edge.Cuts --page-size-mode 2 \
+  --exclude-drawing-sheet -o board.svg board.kicad_pcb     # flat, the board's area (within 0.1 mm)
+kicad-cli pcb render --side top -w 1600 -h 900 -o board.png board.kicad_pcb   # 3D, from the top
+```
+
+Both run **headless**, nothing to set up. `pcb render` uses KiCad's CPU raytracer, not OpenGL, and needs
+no display: it works on Linux with no `DISPLAY` and no X or Wayland libraries installed (the Linux smoke
+test runs it in a bare `ubuntu:24.04` container), and on macOS outside any login session (checked with
+`cli-10.0.6-10` from a launchd job in the `Background` session, which has no window server). So no
+software-GL fallback is needed; `pcb export svg` remains the cheap 2D one (under a second, where a
+`--quality high --floor` render takes about 5 s for a small board). Renders are deterministic: the same PNG,
+byte for byte, on macOS arm64 and Linux arm64. KiCad 10.0.6 makes the image up to 32 pixels smaller than
+asked (1568 x 872 for the default 1600 x 900, 368 x 168 for 400 x 200), so scale it rather than expect the
+exact size.
+
+The bundle has no 3D models (KiCad's library is 3.1 GB) nor the plugins that load them (`PlugIns/3d`), so
+`pcb render` draws the board, its copper, mask and silkscreen, and no component bodies. Boards imported
+from Eagle have no models anyway. Bundling the plugins for boards that bring their own models is #28.
+
+`pcb import` turns another tool's board into a `.kicad_pcb` (Eagle, Altium, CADSTAR, PADS, ...; KiCad
+10.0.6's own command, unlike `sch import`): `kicad-cli pcb import --format eagle -o board.kicad_pcb
+board.brd`. Upstream's left Eagle boards with fiducials or logos on a restrict layer unloadable;
+`simee/10.0.6` fixes that (see "Patching KiCad").
 
 Linux has no official relocatable build, so the Linux bundle comes from the official `kicad/kicad:<v>`
 Docker image (Debian, amd64 only): `docker export` its filesystem, walk the ELF `DT_NEEDED` closure of
@@ -200,6 +231,12 @@ review; a human then creates `simee/<version>` from it.
   relative to the input's folder, but most importers (Eagle's among them) make them in the project's,
   the output's: an output folder inside the input's got `<out>/<out relative to the input's>/` and a
   root naming files that weren't there. Upstream master has the same bug (#18).
+- `kicad-cli pcb import` of an Eagle board leaves out what is on an Eagle layer with no KiCad layer
+  (tRestrict, bRestrict, vRestrict, Milling, ...) as the layer mapping dialog does. Its default mapping, the
+  one the CLI uses, mapped those layers to `UNSELECTED_LAYER`, which the importer doesn't skip, so a package
+  wire on tRestrict (Adafruit draws its fiducials and logos there) was saved on layer `UNDEFINED` and every
+  later command failed with "One or more items were found on undefined layers". Upstream master has the
+  same bug (#20).
 
 To build them into a bundle: `uv run kicad-bundle --kicad-version 10.0.6 --platform linux --simee-ref
 simee/10.0.6` (the package workflow's `simee_ref` input does the same; it resolves the branch to one
@@ -247,8 +284,9 @@ bundle imports (Windows API sets aside), fails the build. Needs Windows with Vis
 ports are kept in `~/.cache/kicad-bundle/vcpkg-binaries` (an Actions cache, about 1 GB): the first build
 compiles every port (3 hours on the runner), later ones only KiCad (30 minutes).
 
-To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir>` builds
-`kicad-cli` and the eeschema kiface against Homebrew (a dev build, not a release one), then
+To try a change on macOS: `dev/build-macos-homebrew.sh <simee/<version> checkout> <build dir> [ninja
+target...]` builds `kicad-cli` and the eeschema kiface, or the targets given (`kicad-cli pcbnew_kiface` for
+`pcb import`), against Homebrew (a dev build, not a release one), then
 `KICAD_CLI=<build dir>/kicad/KiCad.app/Contents/MacOS/kicad-cli uv run pytest` also runs the import
 tests, which skip without `KICAD_CLI`. They import each real circuit in `kicad_bundle/smoke/import/`
 (Adafruit BME280, SparkFun logic level converter and SparkFun's two-sheet Tsunami Qwiic in Eagle,
@@ -257,7 +295,10 @@ it with the source tool's, three times: with the source and output folders apart
 the other (`sch_import.LAYOUTS`). For Eagle the expected nets are read straight from the Eagle XML
 (`tests/eagle_nets.py`); for the others, checked by hand against the project's own schematic export, as
 each `fixture.json` says. An
-import that leaves a hidden file next to its output fails too. Each fixture keeps its source's licence.
+import that leaves a hidden file next to its output fails too. A fixture whose `fixture.json` has a `board`
+(the Adafruit BME280's Eagle `.brd`) is also imported with `pcb import` (`pcb_import.py`): the pads of its
+gerbers must carry the nets of the board's signals, read from its XML like the schematic's, and it must draw
+(`pcb export svg` the size of its outline, `pcb render`). Each fixture keeps its source's licence.
 
 ## AVR toolchain
 
